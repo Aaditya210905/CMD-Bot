@@ -26,7 +26,7 @@ def run_command(command: str) -> dict:
             return {"success": False, "output": "", "error": "Cancelled by user.", "returncode": -1}
 
     # ▶️ Safe to run
-    console.print(f"[dim]  ▶ Running:[/dim] [bold cyan]{command}[/bold cyan]\n")
+    console.print(f"[dim]  ▶ :[/dim] [bold cyan]{command}[/bold cyan]\n")
 
     try:
         result = subprocess.run(

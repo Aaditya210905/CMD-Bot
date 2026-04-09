@@ -1,24 +1,26 @@
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 from rich.console import Console
+from rich.panel import Panel
+from src.translator import translate
 from src.executor import run_command
 from src.safety import show_safety_levels
 
 console = Console()
 
 prompt_style = Style.from_dict({
-    "prompt": "ansigreen bold",
+    "prompt": "ansicyan bold",
 })
 
 
 def print_banner():
     console.print()
-    console.print("[bold green]╔══════════════════════════════════════╗[/bold green]")
-    console.print("[bold green]║      🤖  CmdBot  Activated!          ║[/bold green]")
-    console.print("[bold green]║  Type Windows CMD commands directly  ║[/bold green]")
-    console.print("[bold green]║  Type [bold yellow]exit[/bold yellow][bold green] to shut down            ║[/bold green]")
-    console.print("[bold green]║  Type [bold cyan]help safety[/bold cyan][bold green] for safety info    ║[/bold green]")
-    console.print("[bold green]╚══════════════════════════════════════╝[/bold green]")
+    console.print("[bold cyan]╔══════════════════════════════════════════╗[/bold cyan]")
+    console.print("[bold cyan]║       🤖  CmdBot AI  Activated!          ║[/bold cyan]")
+    console.print("[bold cyan]║  Speak plain English — I'll handle CMD   ║[/bold cyan]")
+    console.print("[bold cyan]║  Type [bold yellow]exit[/bold yellow][bold cyan] to shut down               ║[/bold cyan]")
+    console.print("[bold cyan]║  Type [bold green]help safety[/bold green][bold cyan] for safety rules       ║[/bold cyan]")
+    console.print("[bold cyan]╚══════════════════════════════════════════╝[/bold cyan]")
     console.print()
 
 
@@ -30,7 +32,9 @@ def print_exit():
 
 def run_agent():
     print_banner()
+
     session = PromptSession()
+    history = []          # 🧠 Keeps conversation context across turns
 
     while True:
         try:
@@ -49,13 +53,40 @@ def run_agent():
                 print_exit()
                 break
 
-            # 📋 Help — safety table
+            # 📋 Help
             if user_input.lower() == "help safety":
                 show_safety_levels()
                 continue
 
-            # ▶️ Execute
-            run_command(user_input)
+            # 🧠 Step 1 — Translate English → CMD via LLM
+            result = translate(user_input, history)
+
+            if result.get("kind") == "clarification":
+                question = result.get("question") or result.get("raw", "")
+
+                # Keep clarification turns in context so the next user reply is grounded.
+                history.append({"role": "user", "content": user_input})
+                history.append({"role": "assistant", "content": question})
+
+                if len(history) > 20:
+                    history = history[-20:]
+                continue
+
+            if not result["success"]:
+                continue
+
+            command = result["command"]
+
+            # 🛡️ Step 2 — Run through safety + execute
+            exec_result = run_command(command)
+
+            # 💾 Step 3 — Save turn to history for context
+            history.append({"role": "user",  "content": user_input})
+            history.append({"role": "assistant",  "content": command})
+
+            # 🔒 Keep history short — last 10 turns only (saves tokens)
+            if len(history) > 20:
+                history = history[-20:]
 
         except KeyboardInterrupt:
             console.print("\n[yellow]  Use 'exit' to quit CmdBot.[/yellow]")
