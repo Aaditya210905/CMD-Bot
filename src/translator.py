@@ -17,8 +17,8 @@ client = OpenAI(
 
 PROMPT_FILE_TRANSLATION = Path(__file__).with_name("system_prompt_translation.txt")
 PROMPT_FILE_CLASSIFIER   = Path(__file__).with_name("system_prompt_classifier.txt")
-TRANSLATION_MODEL = os.getenv("OPENROUTER_TRANSLATION_MODEL", "gemma4:e4b")
-CLASSIFIER_MODEL = os.getenv("OPENROUTER_CLASSIFIER_MODEL", TRANSLATION_MODEL)
+TRANSLATION_MODEL = os.getenv("OPENROUTER_TRANSLATION_MODEL", "gemma4:e4b")    # Specify the model to use for translation.
+CLASSIFIER_MODEL = os.getenv("OPENROUTER_CLASSIFIER_MODEL", TRANSLATION_MODEL)  # Can be same or different model for classification
 
 QUESTION_STARTERS = {
     "what",
