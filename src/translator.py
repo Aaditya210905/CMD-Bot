@@ -238,7 +238,8 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
 
     except Exception as e:
         console.print(f"[bold red]  ❌ LLM Error: {e}[/bold red]\n")
-        log_translation(user_input, "", False, f"LLM Error: {e}")
+        log_error("translator", str(e))
+        log_translation(user_input, "", False, str(e))
         return {
             "success": False,
             "kind": "error",

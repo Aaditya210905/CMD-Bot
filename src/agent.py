@@ -6,6 +6,7 @@ from src.translator import translate
 from src.executor import run_command
 from src.safety import show_safety_levels
 from src.logger import log_input, log_session_start,log_session_end, show_session_summary
+from src.context import SessionContext
 
 console = Console()
 
@@ -36,14 +37,23 @@ def run_agent():
     log_session_start()                     # ✅ Log session start
 
     session = PromptSession()
+    ctx = SessionContext()
     history = []          # 🧠 Keeps conversation context across turns
     command_count = 0     # ✅ Track total commands executed
 
     while True:
         try:
+            cwd_short = ctx.get_cwd_display()
             user_input = session.prompt(
-                [("class:prompt", "cmdbot > ")],
-                style=prompt_style
+                [
+                    ("class:prompt", "cmdbot "),
+                    ("class:path",   f"[{cwd_short}]"),
+                    ("class:prompt", " > "),
+                ],
+                style=Style.from_dict({
+                    "prompt" : "ansicyan bold",
+                    "path"   : "ansiyellow",
+                })
             )
 
             user_input = user_input.strip()
@@ -67,9 +77,24 @@ def run_agent():
                 show_session_summary()
                 continue
 
+            if user_input.lower() == "show context":
+                ctx.show_context()
+                continue
+
+            # ── Detect multi-step task markers ─────────────────
+            lower = user_input.lower()
+            if lower.startswith("start task:"):
+                task_name = user_input[11:].strip()
+                ctx.start_task(task_name)
+                continue
+
+            if lower in ["end task", "finish task", "done task"]:
+                ctx.end_task()
+                continue
+
             log_input(user_input)               # ✅ Log user input
 
-            # 🧠 Step 1 — Translate English → CMD via LLM
+            # — Translate English → CMD via LLM
             result = translate(user_input, history)
 
             if result.get("kind") == "clarification":
@@ -87,10 +112,21 @@ def run_agent():
                 continue
 
             command = result["command"]
-
-            # 🛡️ Step 2 — Run through safety + execute
-            exec_result = run_command(command)
             command_count += 1
+
+            # — Run through safety + execute
+            exec_result = run_command(command, cwd=ctx.cwd)
+            # ── 📁 Update working directory ────────────────────
+            ctx.update_cwd(command, exec_result["success"])
+
+            # ─ Record to context history ───────────────────
+            ctx.record_command(
+                user_input = user_input,
+                command    = command,
+                success    = exec_result["success"],
+                output     = exec_result.get("output", ""),
+                error      = exec_result.get("error", "")
+            )
 
             # 💾 Step 3 — Save turn to history for context
             history.append({"role": "user",  "content": user_input})

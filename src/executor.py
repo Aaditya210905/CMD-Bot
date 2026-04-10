@@ -1,4 +1,5 @@
 import subprocess
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 from src.safety import check_command, show_blocked_warning, show_dangerous_warning
@@ -7,7 +8,7 @@ from src.logger import log_safety, log_execution, log_error
 console = Console()
 
 
-def run_command(command: str) -> dict:
+def run_command(command: str, cwd: Optional[str] = None) -> dict:
     """
     Run a command after passing it through the safety layer.
     """
@@ -43,6 +44,7 @@ def run_command(command: str) -> dict:
             text=True,
             encoding="utf-8",
             errors="replace",
+            cwd=cwd,
             timeout=30
         )
 
