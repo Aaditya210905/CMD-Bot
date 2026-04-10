@@ -5,6 +5,7 @@ from rich.panel import Panel
 from src.translator import translate
 from src.executor import run_command
 from src.safety import show_safety_levels
+from src.help import show_help
 from src.logger import log_input, log_session_start,log_session_end, show_session_summary
 from src.context import SessionContext
 
@@ -67,7 +68,16 @@ def run_agent():
                 print_exit()
                 break
 
+            # Clear screen
+            if user_input.lower() == "clear":
+                run_command("cls", cwd=ctx.cwd)
+                continue
+
             # 📋 Help
+            if user_input.lower() == "help":
+                show_help()
+                continue
+
             if user_input.lower() == "help safety":
                 show_safety_levels()
                 continue
