@@ -2,6 +2,7 @@ import subprocess
 from rich.console import Console
 from rich.panel import Panel
 from src.safety import check_command, show_blocked_warning, show_dangerous_warning
+from src.logger import log_safety, log_execution, log_error
 
 console = Console()
 
@@ -13,6 +14,12 @@ def run_command(command: str) -> dict:
 
     # 🛡️ Run through safety checks first
     safety = check_command(command)
+    log_safety(                                      # ✅ Log safety result
+        command = command,
+        level   = safety["level"],
+        allowed = safety["allowed"],
+        matched = safety.get("matched", "")
+    )
 
     # 🚫 Level 1 & 3 — Hard blocked, never execute
     if not safety["allowed"]:
@@ -61,12 +68,16 @@ def run_command(command: str) -> dict:
             console.print("[dim green]  ✅ Command executed successfully (no output).[/dim green]")
 
         console.print()
+
+        log_execution(command, success, output, error, result.returncode)   # ✅ Log result
         return {"success": success, "output": output, "error": error, "returncode": result.returncode}
 
     except subprocess.TimeoutExpired:
         console.print(Panel("[red]⏱️  Timed out after 30 seconds.[/red]", border_style="red"))
+        log_execution(command, False, "", "Timeout", -1)  # ✅ Log timeout
         return {"success": False, "output": "", "error": "Timeout", "returncode": -1}
 
     except Exception as e:
         console.print(Panel(f"[red]Unexpected error: {e}[/red]", border_style="red"))
+        log_error(command, str(e))
         return {"success": False, "output": "", "error": str(e), "returncode": -1}

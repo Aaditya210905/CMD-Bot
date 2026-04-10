@@ -5,6 +5,7 @@ from rich.panel import Panel
 from src.translator import translate
 from src.executor import run_command
 from src.safety import show_safety_levels
+from src.logger import log_input, log_session_start,log_session_end, show_session_summary
 
 console = Console()
 
@@ -32,9 +33,11 @@ def print_exit():
 
 def run_agent():
     print_banner()
+    log_session_start()                     # ✅ Log session start
 
     session = PromptSession()
     history = []          # 🧠 Keeps conversation context across turns
+    command_count = 0     # ✅ Track total commands executed
 
     while True:
         try:
@@ -50,6 +53,7 @@ def run_agent():
 
             # 🚪 Exit
             if user_input.lower() in ["exit", "quit", "bye"]:
+                log_session_end(command_count)  # ✅ Log session end with total commands
                 print_exit()
                 break
 
@@ -57,6 +61,13 @@ def run_agent():
             if user_input.lower() == "help safety":
                 show_safety_levels()
                 continue
+
+            # 📊 Show logs summary
+            if user_input.lower() == "show logs":
+                show_session_summary()
+                continue
+
+            log_input(user_input)               # ✅ Log user input
 
             # 🧠 Step 1 — Translate English → CMD via LLM
             result = translate(user_input, history)
@@ -79,6 +90,7 @@ def run_agent():
 
             # 🛡️ Step 2 — Run through safety + execute
             exec_result = run_command(command)
+            command_count += 1
 
             # 💾 Step 3 — Save turn to history for context
             history.append({"role": "user",  "content": user_input})
@@ -93,5 +105,6 @@ def run_agent():
             continue
 
         except EOFError:
+            log_session_end(command_count)
             print_exit()
             break

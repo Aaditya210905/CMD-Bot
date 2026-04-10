@@ -4,6 +4,7 @@ from typing import Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 from rich.console import Console
+from src.logger import log_translation, log_error, log_clarification_question
 
 load_dotenv()
 console = Console()
@@ -14,7 +15,8 @@ client = OpenAI(
   api_key="ollama"
 )
 
-PROMPT_FILE = Path(__file__).with_name("system_prompt.txt")
+PROMPT_FILE_TRANSLATION = Path(__file__).with_name("system_prompt_translation.txt")
+PROMPT_FILE_CLASSIFIER   = Path(__file__).with_name("system_prompt_classifier.txt")
 TRANSLATION_MODEL = os.getenv("OPENROUTER_TRANSLATION_MODEL", "gemma4:e4b")
 CLASSIFIER_MODEL = os.getenv("OPENROUTER_CLASSIFIER_MODEL", TRANSLATION_MODEL)
 
@@ -41,7 +43,7 @@ QUESTION_STARTERS = {
 }
 
 
-def load_system_prompt() -> str:
+def load_system_prompt(PROMPT_FILE) -> str:
     """Load the system prompt from disk so it can be edited separately."""
     try:
         return PROMPT_FILE.read_text(encoding="utf-8").strip()
@@ -95,33 +97,7 @@ def looks_like_question(text: str) -> bool:
 
 def classify_output_kind(user_input: str, llm_output: str) -> str:
     """Second LLM layer to classify output as CMD command or clarification question."""
-    classifier_prompt = (
-        "You are a binary response classifier for a Windows CMD assistant.\n"
-        "Your sole task is to analyze the given text and determine what type of output it represents.\n\n"
-
-        "OUTPUT RULE — ABSOLUTE:\n"
-        "Reply with exactly ONE word. Nothing else. No punctuation. No explanation.\n"
-        "That word must be either: COMMAND or QUESTION\n\n"
-
-        "DEFINITIONS:\n"
-        "COMMAND → The text is a valid, executable Windows CMD command or a chain of commands (e.g. using &&).\n"
-        "           It is something that can be typed directly into a CMD window and run.\n"
-        "           Examples: dir, mkdir projects, del test.txt && echo done, ipconfig /all\n\n"
-        "QUESTION → The text is a clarification question directed at the user.\n"
-        "           It asks for missing information needed to generate a command.\n"
-        "           Examples: Which file do you want to delete?, Where should I copy the folder to?\n\n"
-
-        "DECISION RULES:\n"
-        "- If the text looks like a CMD command or chained commands → output: COMMAND\n"
-        "- If the text ends with a '?' or asks the user for information → output: QUESTION\n"
-        "- If you are unsure → output: COMMAND\n\n"
-
-        "STRICT FORMAT REMINDER:\n"
-        "✗ WRONG: 'The answer is COMMAND'\n"
-        "✗ WRONG: 'COMMAND.' or 'COMMAND\n'\n"
-        "✓ CORRECT: COMMAND\n"
-        "✓ CORRECT: QUESTION\n"
-    )
+    classifier_prompt = load_system_prompt(PROMPT_FILE_CLASSIFIER)
 
     try:
         response = client.chat.completions.create(
@@ -180,8 +156,9 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
         history = []
 
     # Build messages — system prompt + history + new user input
-    system_prompt = load_system_prompt()
+    system_prompt = load_system_prompt(PROMPT_FILE_TRANSLATION)
     if not system_prompt:
+        log_translation(user_input, "", False, "Failed to load system prompt.")
         return {
             "success": False,
             "kind": "error",
@@ -211,6 +188,7 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
         # LLM signals it can't do this via CMD
         if output.upper() == "CANNOT_EXECUTE":
             console.print("[yellow]  ⚠️  LLM couldn't find a CMD equivalent for that.[/yellow]\n")
+            log_translation(user_input, "", False, "LLM indicated no CMD equivalent.")
             return {
                 "success": False,
                 "kind": "error",
@@ -223,6 +201,7 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
         # Empty response guard
         if not output:
             console.print("[yellow]  ⚠️  LLM returned an empty response.[/yellow]\n")
+            log_translation(user_input, "", False, "LLM returned an empty response.")
             return {
                 "success": False,
                 "kind": "error",
@@ -235,6 +214,8 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
         output_kind = classify_output_kind(user_input, output)
         if output_kind == "question":
             console.print(f"[yellow]  ❓ Clarification needed:[/yellow] [italic white]{output}[/italic white]\n")
+            log_translation(user_input, output, False, "LLM needs clarification.")
+            log_clarification_question(user_input, output)
             return {
                 "success": False,
                 "kind": "clarification",
@@ -245,6 +226,7 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
             }
 
         console.print(f"[dim]  🔁 Translated to:[/dim] [bold cyan]{output}[/bold cyan]\n")
+        log_translation(user_input, output, True, "Translation successful.")
         return {
             "success": True,
             "kind": "command",
@@ -256,6 +238,7 @@ def translate(user_input: str, history: Optional[list] = None) -> dict:
 
     except Exception as e:
         console.print(f"[bold red]  ❌ LLM Error: {e}[/bold red]\n")
+        log_translation(user_input, "", False, f"LLM Error: {e}")
         return {
             "success": False,
             "kind": "error",

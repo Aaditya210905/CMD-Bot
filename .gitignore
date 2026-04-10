@@ -49,6 +49,9 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# Log folder
+logs/
+
 a.txt
 test.py
 sample.py
