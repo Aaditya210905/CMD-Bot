@@ -18,7 +18,7 @@ def print_banner():
     console.print("[bold cyan]╔══════════════════════════════════════════╗[/bold cyan]")
     console.print("[bold cyan]║       🤖  CmdBot AI  Activated!          ║[/bold cyan]")
     console.print("[bold cyan]║  Speak plain English — I'll handle CMD   ║[/bold cyan]")
-    console.print("[bold cyan]║  Type [bold yellow]exit[/bold yellow][bold cyan] to shut down               ║[/bold cyan]")
+    console.print("[bold cyan]║  Type [bold yellow]exit[/bold yellow][bold cyan] to shut down                  ║[/bold cyan]")
     console.print("[bold cyan]║  Type [bold green]help safety[/bold green][bold cyan] for safety rules       ║[/bold cyan]")
     console.print("[bold cyan]╚══════════════════════════════════════════╝[/bold cyan]")
     console.print()
